@@ -7,12 +7,18 @@
 //
 
 import UIKit
+import CoreBluetooth;
 
 class ViewController: UIViewController {
-
+    
+    @IBOutlet weak var connectedStatus: UILabel!
+    @IBOutlet weak var ambientTemp: UILabel!
+    @IBOutlet weak var irTemp: UILabel!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        connectedStatus.text = "false"
     }
 
     override func didReceiveMemoryWarning() {
