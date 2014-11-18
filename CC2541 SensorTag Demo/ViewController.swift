@@ -13,6 +13,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     @IBOutlet weak var connectedStatus: UILabel!
     @IBOutlet weak var ambientTemp: UILabel!
+    @IBOutlet weak var ambientTempF: UILabel!
     @IBOutlet weak var irTemp: UILabel!
     
     let sensorTagUUID = CBUUID(string: "66D57D24-5AAF-7998-F09A-2425460E09A6")
@@ -20,31 +21,23 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     let temperatureCharacteristic = CBUUID(string: "F000AA01-0451-4000-B000-000000000000")
     let temperatureMonitor = CBUUID(string: "F000AA02-0451-4000-B000-000000000000")
     
-    let deviceInformationService = CBUUID(string: "180a")
-    
-    
     var centralManager: CBCentralManager!
     var sensorTag: CBPeripheral?
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
     @IBAction func tryConnecting(sender: AnyObject) {
         println("Attempting to connect");
-        let services = [deviceInformationService];
         centralManager.scanForPeripheralsWithServices(nil, options: nil)
     }
     
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
     }
     
-    
-    ////// CBCentralManagerDelegate /////////////////////////
     
     // Called when connected to BLE peripheral
     func centralManager(central: CBCentralManager!, didConnectPeripheral peripheral: CBPeripheral!) {
@@ -59,7 +52,6 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
     
-    // CBCentralManagerDelegate - This is called with the CBPeripheral class as its main input parameter. This contains most of the information there is to know about a BLE peripheral.
     func centralManager(central: CBCentralManager!, didDiscoverPeripheral peripheral: CBPeripheral!, advertisementData: [NSObject : AnyObject]!, RSSI: NSNumber!) {
         println("didDiscoverPeripheral")
         let localNamePre: AnyObject? = advertisementData[CBAdvertisementDataLocalNameKey]
@@ -74,9 +66,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
     
-    // method called whenever the device state changes.
+    // Device state changes.
     func centralManagerDidUpdateState(central: CBCentralManager!) {
-        // Determine the state of the peripheral
         if central.state == .PoweredOff {
             println("CoreBluetooth BLE hardware is powered off")
         }
@@ -118,8 +109,6 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         if error == nil {
             println("Service Info: \(service.description)")
             for aChar in service.characteristics as [CBCharacteristic] {
-                //if aChar.UUID == HRM_MANUFACTURER_NAME_CHARACTERISTIC_UUID {
-                //HRMPeripheral.readValueForCharacteristic(aChar)
                 aChar.description
                 println("Found: \(aChar.UUID) \(aChar.UUID.data)")
                 if aChar.UUID == temperatureCharacteristic || aChar.UUID == temperatureMonitor ||
@@ -128,10 +117,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
                         let data = NSData(bytes: &enabled, length: 1)
                         peripheral.writeValue(data, forCharacteristic: aChar, type: CBCharacteristicWriteType.WithResponse)
                         peripheral.setNotifyValue(true, forCharacteristic: aChar)
-                        println("Periph: \(peripheral.description)")
-                        println("Found IR temp")
+                        println("Enabling temp")
                 }
-                //}
             }
         }
         else {
@@ -142,7 +129,6 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     // Notofied of characteristic's value
     func peripheral(peripheral: CBPeripheral!, didUpdateValueForCharacteristic characteristic: CBCharacteristic!, error: NSError!) {
-        println("Notification received!")
         
         if (characteristic.UUID == temperatureCharacteristic) {
             getTemperatureData(characteristic, error: error)
@@ -152,11 +138,16 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     func getTemperatureData(characteristic: CBCharacteristic!, error: NSError!) {
         println("Getting temperature data!")
         
-        var data:Int16 = 0
-        characteristic.value.getBytes(&data)
+        var data:NSData = characteristic.value;
+        var byteArray = [UInt8](count: data.length, repeatedValue: 0x0)
+        data.getBytes(&byteArray, length: data.length)
         
-        let ambient = Double(data)/128.0;
-        let vObj2 = Double(data)*0.00000015625;
+        var objTemp:UInt16 = ((UInt16(byteArray[0]) & 0xff) | ((UInt16(byteArray[1]) << 8) & 0xff00))
+        var ambTemp:UInt16 = ((UInt16(byteArray[2]) & 0xff) | ((UInt16(byteArray[3]) << 8) & 0xff00))
+        
+        
+        let ambient = Double(ambTemp)/128.0;
+        let vObj2 = Double(objTemp)*0.00000015625;
         let tDie2 = ambient + 273.15;
         let s0 = 6.4*pow(10,-14);
         let a1 = 1.75*pow(10,-3);
@@ -172,8 +163,9 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         let object = pow(pow(tDie2,4) + (fObj/s),0.25) - 273.15;
         
         
-        ambientTemp.text = "\(ambient)"
-        irTemp.text = "\(object)"
+        ambientTemp.text = "\(ambient) C"
+        ambientTempF.text = "\(ambient * 9 / 5 + 32) F"
+        irTemp.text = "\(object) C"
         
     }
 }
